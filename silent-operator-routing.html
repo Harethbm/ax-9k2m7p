@@ -1,0 +1,1426 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Silent Operator Routing — AnaVerify</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=SF+Pro+Display:wght@300;400;500;600;700&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Sora:wght@300;400;600;700;800&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --db-bg: #0A0F1E;
+    --db-surface: #0F1729;
+    --db-blue: #1B54F8;
+    --db-blue-light: #3B7BFF;
+    --db-teal: #00C896;
+    --db-text: #FFFFFF;
+    --db-muted: rgba(255,255,255,0.45);
+    --tx-bg: #021A0D;
+    --tx-surface: #062010;
+    --tx-teal: #00E5A0;
+    --tx-teal-dim: #00B87A;
+    --tx-text: #FFFFFF;
+    --tx-muted: rgba(255,255,255,0.45);
+  }
+
+  html, body {
+    width: 100%; height: 100%;
+    background: #000;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Inter', 'SF Pro Display', -apple-system, sans-serif;
+    overflow: hidden;
+  }
+
+  /* ── PHONE SHELL ─────────────────────────────────── */
+  .phone-shell {
+    position: relative;
+    width: min(390px, 100vw);
+    height: min(844px, 100vh);
+    background: #000;
+    border-radius: min(50px, 6.5vw);
+    overflow: hidden;
+    box-shadow:
+      0 0 0 1px rgba(255,255,255,0.08),
+      0 0 0 2px rgba(0,0,0,0.9),
+      0 30px 80px rgba(0,0,0,0.9),
+      0 10px 30px rgba(0,0,0,0.6);
+  }
+
+  /* ── STATUS BAR ───────────────────────────────────── */
+  .status-bar {
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 54px;
+    display: flex; align-items: center;
+    justify-content: space-between;
+    padding: 0 28px;
+    z-index: 100;
+    pointer-events: none;
+  }
+  .status-time {
+    font-size: 15px;
+    font-weight: 600;
+    color: #fff;
+    letter-spacing: -0.3px;
+  }
+  .status-icons {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .status-signal { display: flex; align-items: flex-end; gap: 1.5px; }
+  .status-signal span {
+    width: 3px; background: #fff; border-radius: 1px;
+  }
+  .status-signal span:nth-child(1) { height: 5px; }
+  .status-signal span:nth-child(2) { height: 8px; }
+  .status-signal span:nth-child(3) { height: 11px; opacity: 0.4; }
+  .status-signal span:nth-child(4) { height: 14px; opacity: 0.4; }
+  .status-wifi { width: 16px; height: 12px; opacity: 0.9; }
+  .status-battery {
+    width: 25px; height: 12px; border: 1.5px solid rgba(255,255,255,0.7);
+    border-radius: 3px; position: relative;
+  }
+  .status-battery::after {
+    content: '';
+    position: absolute;
+    right: -5px; top: 50%; transform: translateY(-50%);
+    width: 3px; height: 6px;
+    background: rgba(255,255,255,0.5);
+    border-radius: 0 2px 2px 0;
+  }
+  .status-battery-fill {
+    position: absolute;
+    top: 1.5px; left: 1.5px; bottom: 1.5px;
+    width: 60%;
+    background: #fff;
+    border-radius: 1px;
+  }
+
+  /* ── SCENE BASE ───────────────────────────────────── */
+  .scene {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  .scene.active {
+    opacity: 1;
+    pointer-events: all;
+  }
+
+  /* ── SCENE 0 · INTRO ─────────────────────────────── */
+  #scene-intro {
+    background: radial-gradient(ellipse at 50% 60%, #0D1F4A 0%, #050A18 60%, #000 100%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px;
+  }
+  .intro-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 100px;
+    padding: 6px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.7);
+    text-transform: uppercase;
+  }
+  .intro-badge-dot {
+    width: 7px; height: 7px;
+    background: #00E5A0;
+    border-radius: 50%;
+    animation: pulse-dot 2s infinite;
+  }
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(0.8); }
+  }
+  .intro-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    color: #fff;
+    text-align: center;
+    line-height: 1.1;
+    letter-spacing: -1.5px;
+  }
+  .intro-title span { color: #1B54F8; }
+  .intro-sub {
+    font-size: 15px;
+    color: rgba(255,255,255,0.5);
+    text-align: center;
+    max-width: 260px;
+    line-height: 1.6;
+  }
+  .intro-particle {
+    position: absolute;
+    width: 2px; height: 2px;
+    background: rgba(27,84,248,0.6);
+    border-radius: 50%;
+    animation: float-particle var(--dur, 6s) linear infinite;
+    opacity: 0;
+  }
+  @keyframes float-particle {
+    0% { transform: translate(var(--x0), var(--y0)); opacity: 0; }
+    10% { opacity: 0.8; }
+    90% { opacity: 0.4; }
+    100% { transform: translate(var(--x1), var(--y1)); opacity: 0; }
+  }
+
+  /* ── APP CHROME ───────────────────────────────────── */
+  .app-chrome {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .app-header {
+    display: flex; align-items: center;
+    padding: 54px 24px 16px;
+    gap: 14px;
+  }
+  .app-icon {
+    width: 44px; height: 44px;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .app-icon.digibank {
+    background: linear-gradient(135deg, #1B54F8 0%, #0A2FA8 100%);
+    box-shadow: 0 4px 20px rgba(27,84,248,0.5);
+  }
+  .app-icon.telecomx {
+    background: linear-gradient(135deg, #00C896 0%, #006B50 100%);
+    box-shadow: 0 4px 20px rgba(0,200,150,0.4);
+  }
+  .app-name { font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+  .app-tagline { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 1px; }
+
+  .app-content { flex: 1; overflow: hidden; }
+
+  .bottom-nav {
+    height: 72px;
+    display: flex; align-items: center; justify-content: space-around;
+    padding: 0 8px 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+  }
+  .nav-item {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    flex: 1;
+    padding: 8px 4px;
+    border-radius: 12px;
+  }
+  .nav-item.active .nav-icon { opacity: 1; }
+  .nav-item .nav-icon { opacity: 0.35; font-size: 20px; }
+  .nav-item .nav-label { font-size: 10px; font-weight: 500; color: rgba(255,255,255,0.45); }
+  .nav-item.active .nav-label { color: rgba(255,255,255,0.9); }
+
+  /* ── SCENE 1 · DIGIBANK VERIFY ────────────────────── */
+  #scene-db-verify {
+    background: var(--db-bg);
+  }
+  .db-verify-content {
+    padding: 20px 24px 0;
+    display: flex; flex-direction: column; align-items: center;
+    height: 100%;
+  }
+  .db-lock-circle {
+    width: 96px; height: 96px;
+    border-radius: 50%;
+    background: rgba(27,84,248,0.15);
+    border: 1px solid rgba(27,84,248,0.3);
+    display: flex; align-items: center; justify-content: center;
+    margin-bottom: 24px;
+    margin-top: 24px;
+  }
+  .db-lock-icon {
+    width: 40px; height: 40px;
+    color: #1B54F8;
+  }
+  .db-verify-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 28px; font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.8px;
+    text-align: center;
+    margin-bottom: 10px;
+  }
+  .db-verify-sub {
+    font-size: 14px; color: var(--db-muted);
+    text-align: center; line-height: 1.6;
+    max-width: 260px;
+    margin-bottom: 40px;
+  }
+  .phone-field {
+    width: 100%;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 16px;
+    padding: 18px 20px;
+    margin-bottom: 8px;
+  }
+  .phone-field-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 1.2px;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .phone-field-value {
+    font-size: 22px; font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
+  }
+  .phone-field-hint {
+    font-size: 12px; color: rgba(255,255,255,0.35);
+    margin-top: 8px;
+    padding: 0 2px;
+  }
+  .spacer { flex: 1; }
+  .btn-primary {
+    width: 100%;
+    height: 60px;
+    border-radius: 18px;
+    border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    margin-bottom: 12px;
+    letter-spacing: -0.2px;
+  }
+  .btn-digibank {
+    background: linear-gradient(135deg, #1B54F8 0%, #0A35CC 100%);
+    box-shadow: 0 8px 30px rgba(27,84,248,0.4), 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .btn-digibank:hover { filter: brightness(1.1); }
+  .encrypted-badge {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: rgba(255,255,255,0.4);
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .enc-dot { width: 6px; height: 6px; background: #00E5A0; border-radius: 50%; }
+
+  /* ── SCENE 2 · DIGIBANK VERIFYING ─────────────────── */
+  #scene-db-verifying { background: var(--db-bg); }
+  .verifying-content {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%;
+    padding: 0 32px;
+    padding-top: 54px;
+  }
+  .spin-ring {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    border: 3px solid rgba(27,84,248,0.15);
+    border-top: 3px solid #1B54F8;
+    border-right: 3px solid #1B54F8;
+    animation: spin 1.2s cubic-bezier(0.4,0,0.2,1) infinite;
+    margin-bottom: 32px;
+    position: relative;
+  }
+  .spin-ring::after {
+    content: '';
+    position: absolute;
+    inset: 6px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,200,150,0.1);
+    border-top: 2px solid rgba(0,200,150,0.5);
+    animation: spin 0.8s linear infinite reverse;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .verifying-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 26px; font-weight: 700;
+    color: #fff;
+    letter-spacing: -0.5px;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .verifying-sub {
+    font-size: 14px; color: var(--db-muted);
+    text-align: center; line-height: 1.6;
+  }
+  .routing-steps {
+    margin-top: 48px;
+    width: 100%;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .routing-step {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 18px;
+    background: rgba(255,255,255,0.04);
+    border-radius: 14px;
+    border: 1px solid rgba(255,255,255,0.06);
+    opacity: 0;
+    transform: translateX(-10px);
+    animation: step-in 0.4s forwards;
+  }
+  .routing-step:nth-child(1) { animation-delay: 0.4s; }
+  .routing-step:nth-child(2) { animation-delay: 0.9s; }
+  .routing-step:nth-child(3) { animation-delay: 1.4s; }
+  @keyframes step-in {
+    to { opacity: 1; transform: translateX(0); }
+  }
+  .step-icon { font-size: 20px; }
+  .step-text { font-size: 13px; color: rgba(255,255,255,0.6); flex: 1; }
+  .step-check {
+    width: 20px; height: 20px;
+    border-radius: 50%;
+    background: rgba(0,200,150,0.15);
+    border: 1.5px solid #00C896;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px;
+    color: #00C896;
+    opacity: 0;
+    animation: check-appear 0.3s forwards;
+  }
+  .routing-step:nth-child(1) .step-check { animation-delay: 0.8s; }
+  .routing-step:nth-child(2) .step-check { animation-delay: 1.3s; }
+  .routing-step:nth-child(3) .step-check { animation-delay: 1.8s; }
+  @keyframes check-appear { to { opacity: 1; } }
+
+  /* progress bar */
+  .progress-bar-wrap {
+    position: absolute;
+    bottom: 72px; left: 0; right: 0;
+    height: 3px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .progress-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #1B54F8, #00C896);
+    width: 0%;
+    animation: progress-fill 2.5s ease forwards;
+    animation-delay: 0.3s;
+  }
+  @keyframes progress-fill { to { width: 100%; } }
+
+  /* ── SCENE 3 · TELECOMX LAUNCH (app switch) ────────── */
+  #scene-tx-launch {
+    background: var(--tx-bg);
+  }
+  .app-switch-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(0,0,0,0.85);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 50;
+    gap: 16px;
+  }
+  .app-switch-badge {
+    width: 72px; height: 72px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #00C896 0%, #006B50 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px;
+    font-weight: 800;
+    color: #fff;
+    box-shadow: 0 0 0 0 rgba(0,200,150,0.5);
+    animation: app-launch-pulse 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards;
+  }
+  @keyframes app-launch-pulse {
+    0% { transform: scale(0.5); box-shadow: 0 0 0 0 rgba(0,200,150,0.5); opacity: 0; }
+    60% { transform: scale(1.1); box-shadow: 0 0 0 20px rgba(0,200,150,0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(0,200,150,0); opacity: 1; }
+  }
+  .app-switch-name {
+    font-family: 'Sora', sans-serif;
+    font-size: 22px; font-weight: 700; color: #fff;
+    animation: fade-up 0.4s ease forwards 0.3s;
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  .app-switch-sub {
+    font-size: 13px; color: rgba(255,255,255,0.5);
+    animation: fade-up 0.4s ease forwards 0.5s;
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  @keyframes fade-up { to { opacity: 1; transform: translateY(0); } }
+
+  /* ── SCENE 4 · TELECOMX IDENTITY ─────────────────── */
+  #scene-tx-identity { background: var(--tx-bg); }
+  .tx-identity-content {
+    padding: 10px 20px 0;
+    height: 100%;
+    display: flex; flex-direction: column;
+  }
+  .identity-card {
+    background: rgba(0,200,150,0.06);
+    border: 1px solid rgba(0,200,150,0.2);
+    border-radius: 20px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .identity-card-label {
+    font-size: 10px; font-weight: 600;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.4);
+    text-align: center;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+  }
+  .identity-card-requester {
+    display: flex; flex-direction: column; align-items: center; gap: 8px;
+    margin-bottom: 16px;
+  }
+  .db-mini-icon {
+    width: 40px; height: 40px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #1B54F8 0%, #0A2FA8 100%);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; font-weight: 800; color: #fff;
+    box-shadow: 0 4px 15px rgba(27,84,248,0.4);
+  }
+  .requester-name { font-size: 17px; font-weight: 700; color: #fff; }
+  .requester-action { font-size: 13px; color: rgba(255,255,255,0.45); }
+  .identity-phone {
+    background: rgba(0,200,150,0.1);
+    border-radius: 12px;
+    padding: 12px 16px;
+    text-align: center;
+    font-size: 19px;
+    font-weight: 700;
+    color: var(--tx-teal);
+    letter-spacing: 0.5px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── SCENE 5 · BIOMETRICS ─────────────────────────── */
+  #scene-biometric { background: var(--tx-bg); }
+  .biometric-content {
+    padding: 10px 20px 0;
+    height: 100%;
+    display: flex; flex-direction: column;
+    align-items: center;
+  }
+  .face-scanner-wrap {
+    position: relative;
+    width: 240px; height: 240px;
+    margin: 20px auto 28px;
+    flex-shrink: 0;
+  }
+
+  /* Real face SVG portrait */
+  .face-portrait {
+    position: absolute;
+    inset: 10px;
+    border-radius: 50%;
+    overflow: hidden;
+    background: #1a2a1a;
+  }
+
+  /* SVG face - realistic enough */
+  .face-svg {
+    width: 100%; height: 100%;
+  }
+
+  /* Scan line */
+  .scan-line {
+    position: absolute;
+    left: 0; right: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(0,229,160,0.9), transparent);
+    top: 0;
+    animation: scan-sweep 2.5s ease-in-out infinite;
+    box-shadow: 0 0 12px rgba(0,229,160,0.8), 0 0 24px rgba(0,229,160,0.4);
+    z-index: 5;
+  }
+  @keyframes scan-sweep {
+    0% { top: 10px; opacity: 0; }
+    10% { opacity: 1; }
+    90% { opacity: 1; }
+    100% { top: 230px; opacity: 0; }
+  }
+
+  /* Biometric dots overlaying face */
+  .bio-dots {
+    position: absolute;
+    inset: 0;
+    z-index: 6;
+  }
+  .bio-dot {
+    position: absolute;
+    width: 5px; height: 5px;
+    background: var(--tx-teal);
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(0,229,160,0.8);
+    opacity: 0;
+    animation: dot-appear 0.3s ease forwards;
+  }
+  @keyframes dot-appear { to { opacity: 1; } }
+
+  /* Corner brackets */
+  .scan-frame {
+    position: absolute;
+    inset: 0;
+    z-index: 7;
+  }
+  .corner {
+    position: absolute;
+    width: 30px; height: 30px;
+    border-color: var(--tx-teal);
+    border-style: solid;
+    opacity: 0.9;
+  }
+  .corner.tl { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 4px 0 0 0; }
+  .corner.tr { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 4px 0 0; }
+  .corner.bl { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 4px; }
+  .corner.br { bottom: 0; right: 0; border-width: 0 3px 3px 0; border-radius: 0 0 4px 0; }
+
+  /* Face ring */
+  .face-ring {
+    position: absolute;
+    inset: 8px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,229,160,0.3);
+    z-index: 4;
+  }
+  .face-ring::before {
+    content: '';
+    position: absolute;
+    inset: -2px;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top: 2px solid var(--tx-teal);
+    border-right: 2px solid var(--tx-teal);
+    animation: spin 1.5s linear infinite;
+  }
+
+  .bio-percent {
+    font-family: 'Sora', sans-serif;
+    font-size: 52px; font-weight: 800;
+    color: var(--tx-teal);
+    letter-spacing: -2px;
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .bio-status {
+    font-size: 16px; font-weight: 600;
+    color: #fff; margin-bottom: 4px;
+  }
+  .bio-sub {
+    font-size: 13px; color: rgba(255,255,255,0.4);
+    margin-bottom: 28px;
+  }
+
+  /* Mesh points visualization */
+  .mesh-viz {
+    display: flex; gap: 6px; justify-content: center;
+    flex-wrap: wrap; max-width: 280px;
+    opacity: 0;
+    transition: opacity 0.6s ease;
+  }
+  .mesh-viz.visible { opacity: 1; }
+  .mesh-tag {
+    padding: 5px 10px;
+    background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 8px;
+    font-size: 10px;
+    color: rgba(0,229,160,0.7);
+    font-weight: 500;
+  }
+  .tx-powered {
+    position: absolute;
+    bottom: 80px; left: 0; right: 0;
+    text-align: center;
+    font-size: 11px;
+    color: rgba(255,255,255,0.2);
+  }
+  .tx-powered span { color: rgba(0,229,160,0.5); }
+
+  /* ── SCENE 6 · DIGIBANK SUCCESS ───────────────────── */
+  #scene-db-success { background: var(--db-bg); }
+  .success-content {
+    padding: 20px 24px 0;
+    display: flex; flex-direction: column; align-items: center;
+    height: 100%;
+  }
+  .success-ring {
+    width: 100px; height: 100px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #00C896, #008A60);
+    display: flex; align-items: center; justify-content: center;
+    margin: 24px 0 24px;
+    box-shadow: 0 0 0 0 rgba(0,200,150,0.3);
+    animation: success-pulse 0.6s cubic-bezier(0.34,1.56,0.64,1) forwards;
+    position: relative;
+  }
+  .success-ring::before {
+    content: '';
+    position: absolute;
+    inset: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(0,200,150,0.3);
+    animation: ring-expand 1.5s ease-out infinite;
+  }
+  @keyframes ring-expand {
+    0% { transform: scale(1); opacity: 0.8; }
+    100% { transform: scale(1.5); opacity: 0; }
+  }
+  @keyframes success-pulse {
+    0% { transform: scale(0.4); opacity: 0; }
+    70% { transform: scale(1.1); }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .checkmark-svg { width: 44px; height: 44px; }
+  .checkmark-path {
+    stroke-dasharray: 50;
+    stroke-dashoffset: 50;
+    animation: draw-check 0.5s ease forwards 0.4s;
+  }
+  @keyframes draw-check { to { stroke-dashoffset: 0; } }
+  .success-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 30px; font-weight: 800;
+    color: #00E5A0;
+    letter-spacing: -0.8px;
+    margin-bottom: 10px;
+    text-align: center;
+  }
+  .success-sub {
+    font-size: 14px; color: var(--db-muted);
+    text-align: center; line-height: 1.6;
+    max-width: 250px;
+    margin-bottom: 36px;
+  }
+  .verification-detail-card {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 20px;
+    overflow: hidden;
+  }
+  .detail-card-header {
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+  }
+  .detail-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+  }
+  .detail-row:last-child { border-bottom: none; }
+  .detail-key { font-size: 14px; color: rgba(255,255,255,0.45); }
+  .detail-val { font-size: 14px; font-weight: 600; color: #fff; }
+  .detail-val.green { color: #00E5A0; }
+  .detail-val.teal { color: #00C896; }
+  .btn-continue {
+    background: linear-gradient(135deg, #1B54F8 0%, #0A35CC 100%);
+    box-shadow: 0 8px 30px rgba(27,84,248,0.35), 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  /* ── SCENE 7 · KEY IMPROVEMENT ───────────────────── */
+  #scene-key-improvement {
+    background: radial-gradient(ellipse at 40% 60%, #071A2E 0%, #030810 100%);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 20px;
+    padding: 40px 28px;
+  }
+  .key-badge {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(0,229,160,0.08);
+    border: 1px solid rgba(0,229,160,0.2);
+    border-radius: 100px;
+    padding: 7px 16px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1.5px;
+    color: var(--tx-teal);
+    text-transform: uppercase;
+  }
+  .key-improvement-card {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 24px;
+    padding: 32px 28px;
+    width: 100%;
+    text-align: center;
+  }
+  .key-title {
+    font-family: 'Sora', sans-serif;
+    font-size: 22px; font-weight: 800;
+    color: #fff;
+    line-height: 1.3;
+    letter-spacing: -0.5px;
+    margin-bottom: 20px;
+  }
+  .key-title span { color: var(--tx-teal); }
+  .key-divider {
+    height: 1px;
+    background: rgba(255,255,255,0.08);
+    margin: 0 -8px 20px;
+  }
+  .key-point {
+    display: flex; align-items: flex-start; gap: 12px;
+    margin-bottom: 12px;
+    text-align: left;
+  }
+  .key-point-icon {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    background: rgba(0,229,160,0.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .key-point-text { font-size: 14px; color: rgba(255,255,255,0.6); line-height: 1.5; }
+  .key-point-text strong { color: #fff; }
+  .imagineers-footer {
+    text-align: center;
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.2);
+    text-transform: uppercase;
+  }
+  .imagineers-footer span { color: rgba(0,229,160,0.4); }
+
+  /* ── GLOBAL TRANSITIONS ───────────────────────────── */
+  .slide-from-right { animation: slide-from-right 0.5s cubic-bezier(0.4,0,0.2,1) forwards; }
+  .slide-to-left { animation: slide-to-left 0.5s cubic-bezier(0.4,0,0.2,1) forwards; }
+  .slide-up { animation: slide-up 0.5s cubic-bezier(0.4,0,0.2,1) forwards; }
+  .fade-in { animation: fade-in 0.6s ease forwards; }
+
+  @keyframes slide-from-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
+  @keyframes slide-to-left { from { transform: translateX(0); } to { transform: translateX(-100%); } }
+  @keyframes slide-up { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* home indicator */
+  .home-indicator {
+    position: absolute;
+    bottom: 8px; left: 50%; transform: translateX(-50%);
+    width: 130px; height: 5px;
+    background: rgba(255,255,255,0.3);
+    border-radius: 3px;
+    z-index: 200;
+  }
+
+  /* Ripple button effect */
+  .btn-primary.tapped { animation: btn-tap 0.15s ease; }
+  @keyframes btn-tap { 50% { transform: scale(0.97); } }
+</style>
+</head>
+<body>
+<div class="phone-shell" id="phone">
+
+  <!-- Status Bar (shared) -->
+  <div class="status-bar" id="statusBar">
+    <span class="status-time">9:41</span>
+    <div class="status-icons">
+      <div class="status-signal">
+        <span></span><span></span><span></span><span></span>
+      </div>
+      <svg class="status-wifi" viewBox="0 0 16 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 9.5C8.83 9.5 9.5 10.17 9.5 11S8.83 12.5 8 12.5 6.5 11.83 6.5 11 7.17 9.5 8 9.5Z" fill="white"/>
+        <path d="M8 6C9.93 6 11.68 6.79 12.95 8.06L14.02 6.99C12.47 5.44 10.34 4.5 8 4.5S3.53 5.44 1.98 6.99L3.05 8.06C4.32 6.79 6.07 6 8 6Z" fill="white" opacity="0.7"/>
+        <path d="M8 2.5C10.9 2.5 13.52 3.67 15.41 5.56L16.48 4.49C14.31 2.32 11.31 1 8 1S1.69 2.32-.48 4.49L.59 5.56C2.48 3.67 5.1 2.5 8 2.5Z" fill="white" opacity="0.4"/>
+      </svg>
+      <div class="status-battery">
+        <div class="status-battery-fill"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── SCENE 0: INTRO ── -->
+  <div class="scene active" id="scene-intro">
+    <!-- particles -->
+    <div class="intro-particle" style="--x0:-60px;--y0:200px;--x1:40px;--y1:-300px;--dur:7s;left:50%;top:50%;animation-delay:0s"></div>
+    <div class="intro-particle" style="--x0:80px;--y0:100px;--x1:-50px;--y1:-250px;--dur:6s;left:30%;top:60%;animation-delay:1s;background:rgba(0,200,150,0.6)"></div>
+    <div class="intro-particle" style="--x0:-40px;--y0:-80px;--x1:60px;--y1:200px;--dur:8s;left:70%;top:30%;animation-delay:2s"></div>
+    <div class="intro-particle" style="--x0:30px;--y0:60px;--x1:-80px;--y1:-180px;--dur:5s;left:20%;top:40%;animation-delay:0.5s;background:rgba(0,200,150,0.5)"></div>
+    <div class="intro-badge">
+      <div class="intro-badge-dot"></div>
+      Visual Journey
+    </div>
+    <div class="intro-title">Silent Operator<br><span>Routing</span></div>
+    <div class="intro-sub">Bank identifies the operator from phone prefix — seamless, invisible routing</div>
+  </div>
+
+  <!-- ── SCENE 1: DIGIBANK VERIFY ── -->
+  <div class="scene" id="scene-db-verify" style="background: linear-gradient(180deg, #0A0F1E 0%, #070D1A 100%)">
+    <div class="app-chrome">
+      <div class="app-header">
+        <div class="app-icon digibank">DB</div>
+        <div>
+          <div class="app-name">DigiBank</div>
+          <div class="app-tagline">Secure Banking</div>
+        </div>
+      </div>
+      <div class="app-content">
+        <div class="db-verify-content">
+          <div class="db-lock-circle">
+            <svg class="db-lock-icon" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect x="8" y="18" width="24" height="17" rx="4" stroke="#1B54F8" stroke-width="2.5" fill="rgba(27,84,248,0.15)"/>
+              <path d="M13 18V13C13 8.58 16.58 5 21 5C25.42 5 29 8.58 29 13V18" stroke="#1B54F8" stroke-width="2.5" stroke-linecap="round"/>
+              <circle cx="21" cy="26" r="3" fill="#1B54F8"/>
+              <line x1="21" y1="29" x2="21" y2="32" stroke="#1B54F8" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="db-verify-title">Verify Your Number</div>
+          <div class="db-verify-sub">Confirm your identity to complete this transaction securely</div>
+          <div class="phone-field">
+            <div class="phone-field-label">Phone Number</div>
+            <div class="phone-field-value">+962 795 XXX X25</div>
+          </div>
+          <div class="phone-field-hint">Registered mobile number on file</div>
+          <div class="spacer"></div>
+          <button class="btn-primary btn-digibank" id="btnVerify" onclick="tapButton(this, nextScene)">
+            Verify Identity
+          </button>
+          <div class="encrypted-badge">
+            <div class="enc-dot"></div>
+            End-to-end encrypted
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active">
+          <div class="nav-icon">🏠</div>
+          <div class="nav-label">Home</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">💳</div>
+          <div class="nav-label">Cards</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">💸</div>
+          <div class="nav-label">Pay</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">⋯</div>
+          <div class="nav-label">More</div>
+        </div>
+      </div>
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ── SCENE 2: DIGIBANK VERIFYING ── -->
+  <div class="scene" id="scene-db-verifying" style="background: linear-gradient(180deg, #0A0F1E 0%, #070D1A 100%)">
+    <div class="app-chrome">
+      <div class="app-header">
+        <div class="app-icon digibank">DB</div>
+        <div>
+          <div class="app-name">DigiBank</div>
+          <div class="app-tagline">Secure Banking</div>
+        </div>
+      </div>
+      <div class="app-content">
+        <div class="verifying-content">
+          <div class="spin-ring"></div>
+          <div class="verifying-title">Verifying…</div>
+          <div class="verifying-sub">Please wait while we securely verify your identity</div>
+          <div class="routing-steps">
+            <div class="routing-step">
+              <span class="step-icon">📱</span>
+              <span class="step-text">Reading phone number prefix</span>
+              <div class="step-check">✓</div>
+            </div>
+            <div class="routing-step">
+              <span class="step-icon">📡</span>
+              <span class="step-text">Routing to operator silently</span>
+              <div class="step-check">✓</div>
+            </div>
+            <div class="routing-step">
+              <span class="step-icon">🔐</span>
+              <span class="step-text">Opening TelecomX verification</span>
+              <div class="step-check">✓</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active">
+          <div class="nav-icon">🏠</div>
+          <div class="nav-label">Home</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">💳</div>
+          <div class="nav-label">Cards</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">💸</div>
+          <div class="nav-label">Pay</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">⋯</div>
+          <div class="nav-label">More</div>
+        </div>
+      </div>
+    </div>
+    <div class="progress-bar-wrap"><div class="progress-bar-fill"></div></div>
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ── SCENE 3: TELECOMX APP LAUNCH ── -->
+  <div class="scene" id="scene-tx-launch">
+    <!-- app switching animation overlay -->
+    <div style="position:absolute;inset:0;background: radial-gradient(ellipse at center, #032010 0%, #010A05 100%);"></div>
+    <div class="app-switch-overlay" id="appSwitchOverlay">
+      <div class="app-switch-badge">TX</div>
+      <div class="app-switch-name">TelecomX</div>
+      <div class="app-switch-sub">True Identity · Opening…</div>
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ── SCENE 4: TELECOMX IDENTITY REQUEST ── -->
+  <div class="scene" id="scene-tx-identity" style="background: linear-gradient(180deg, #021A0D 0%, #010A05 100%)">
+    <div class="app-chrome">
+      <div class="app-header">
+        <div class="app-icon telecomx">TX</div>
+        <div>
+          <div class="app-name">TelecomX</div>
+          <div class="app-tagline">True Identity</div>
+        </div>
+      </div>
+      <div class="app-content">
+        <div class="tx-identity-content">
+          <div class="identity-card">
+            <div class="identity-card-label">Identity Request</div>
+            <div class="identity-card-requester">
+              <div class="db-mini-icon">DB</div>
+              <div class="requester-name">DigiBank</div>
+              <div class="requester-action">wants to verify your identity</div>
+            </div>
+            <div class="identity-phone">+962 795 XXX X25</div>
+          </div>
+          <div style="text-align:center;margin-bottom:18px;">
+            <div style="font-size:13px;color:rgba(255,255,255,0.4);line-height:1.6;">
+              TelecomX will verify your identity using<br>facial biometrics. Your data stays secure.
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:auto;">
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.12);border-radius:14px;">
+              <span style="font-size:18px;">🛡️</span>
+              <span style="font-size:13px;color:rgba(255,255,255,0.55);">Zero-knowledge biometric matching</span>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(0,229,160,0.05);border:1px solid rgba(0,229,160,0.12);border-radius:14px;">
+              <span style="font-size:18px;">⚡</span>
+              <span style="font-size:13px;color:rgba(255,255,255,0.55);">Completes in under 2 seconds</span>
+            </div>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn-primary" style="background:linear-gradient(135deg,#00C896,#007A5E);box-shadow:0 8px 30px rgba(0,200,150,0.35);margin:0 0 12px" onclick="tapButton(this, nextScene)">
+            Scan My Face
+          </button>
+          <div style="text-align:center;font-size:12px;color:rgba(255,255,255,0.3);margin-bottom:16px;">
+            Powered by <span style="color:rgba(0,229,160,0.5);">TelecomX True Identity</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ── SCENE 5: BIOMETRIC SCAN ── -->
+  <div class="scene" id="scene-biometric" style="background: linear-gradient(180deg, #021A0D 0%, #010A05 100%)">
+    <div class="app-chrome">
+      <div class="app-header">
+        <div class="app-icon telecomx">TX</div>
+        <div>
+          <div class="app-name">TelecomX</div>
+          <div class="app-tagline">True Identity</div>
+        </div>
+      </div>
+      <div class="app-content">
+        <div class="biometric-content">
+          <!-- identity request mini card -->
+          <div style="width:100%;background:rgba(0,200,150,0.05);border:1px solid rgba(0,200,150,0.15);border-radius:14px;padding:12px 16px;display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-shrink:0;">
+            <div class="db-mini-icon" style="width:32px;height:32px;border-radius:8px;font-size:12px;">DB</div>
+            <div>
+              <div style="font-size:13px;font-weight:600;color:#fff;">DigiBank</div>
+              <div style="font-size:11px;color:rgba(255,255,255,0.4);">Identity verification in progress</div>
+            </div>
+            <div style="margin-left:auto;width:10px;height:10px;background:#00E5A0;border-radius:50%;animation:pulse-dot 1s infinite;flex-shrink:0;"></div>
+          </div>
+
+          <!-- Face scanner -->
+          <div class="face-scanner-wrap" id="faceScanner">
+            <!-- Face portrait using SVG (realistic male face) -->
+            <div class="face-portrait">
+              <svg class="face-svg" viewBox="0 0 220 240" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <!-- Background skin -->
+                <rect width="220" height="240" fill="#1E3020"/>
+                <!-- Dark ambient -->
+                <ellipse cx="110" cy="130" rx="80" ry="90" fill="#0D1F0F" opacity="0.5"/>
+                <!-- Neck -->
+                <rect x="85" y="175" width="50" height="65" rx="5" fill="#C8956B"/>
+                <!-- Shoulders -->
+                <ellipse cx="55" cy="230" rx="60" ry="30" fill="#2A2A2A"/>
+                <ellipse cx="165" cy="230" rx="60" ry="30" fill="#2A2A2A"/>
+                <!-- Head shape -->
+                <ellipse cx="110" cy="120" rx="72" ry="85" fill="#D4956A"/>
+                <!-- Hair -->
+                <ellipse cx="110" cy="55" rx="72" ry="42" fill="#1A0A00"/>
+                <ellipse cx="110" cy="48" rx="68" ry="28" fill="#2A1200"/>
+                <!-- Forehead shadow -->
+                <ellipse cx="110" cy="82" rx="65" ry="20" fill="#C4855A" opacity="0.5"/>
+                <!-- Left eyebrow -->
+                <path d="M68 98 Q82 92 96 97" stroke="#3A1500" stroke-width="4" stroke-linecap="round" fill="none"/>
+                <!-- Right eyebrow -->
+                <path d="M124 97 Q138 92 152 98" stroke="#3A1500" stroke-width="4" stroke-linecap="round" fill="none"/>
+                <!-- Left eye socket -->
+                <ellipse cx="82" cy="110" rx="14" ry="10" fill="#B8805A" opacity="0.6"/>
+                <!-- Right eye socket -->
+                <ellipse cx="138" cy="110" rx="14" ry="10" fill="#B8805A" opacity="0.6"/>
+                <!-- Left eye white -->
+                <ellipse cx="82" cy="110" rx="12" ry="8" fill="#F5F0EB"/>
+                <!-- Right eye white -->
+                <ellipse cx="138" cy="110" rx="12" ry="8" fill="#F5F0EB"/>
+                <!-- Left iris -->
+                <circle cx="82" cy="110" r="6" fill="#4A2A00"/>
+                <!-- Right iris -->
+                <circle cx="138" cy="110" r="6" fill="#4A2A00"/>
+                <!-- Left pupil -->
+                <circle cx="82" cy="110" r="3.5" fill="#0A0500"/>
+                <!-- Right pupil -->
+                <circle cx="138" cy="110" r="3.5" fill="#0A0500"/>
+                <!-- Left eye highlight -->
+                <circle cx="84" cy="108" r="1.5" fill="rgba(255,255,255,0.8)"/>
+                <!-- Right eye highlight -->
+                <circle cx="140" cy="108" r="1.5" fill="rgba(255,255,255,0.8)"/>
+                <!-- Left eyelid top -->
+                <path d="M70 108 Q82 102 94 108" stroke="#2A1200" stroke-width="2.5" fill="none"/>
+                <!-- Right eyelid top -->
+                <path d="M126 108 Q138 102 150 108" stroke="#2A1200" stroke-width="2.5" fill="none"/>
+                <!-- Nose bridge -->
+                <path d="M105 118 L100 145 Q107 150 120 145 L115 118" fill="#C0845A" stroke="none"/>
+                <!-- Nose tip -->
+                <ellipse cx="110" cy="148" rx="14" ry="8" fill="#B87850"/>
+                <!-- Left nostril -->
+                <ellipse cx="99" cy="150" rx="6" ry="5" fill="#A06840"/>
+                <!-- Right nostril -->
+                <ellipse cx="121" cy="150" rx="6" ry="5" fill="#A06840"/>
+                <!-- Philtrum -->
+                <path d="M106 152 L104 162 L116 162 L114 152" fill="#C0845A"/>
+                <!-- Lips -->
+                <path d="M90 164 Q105 158 110 160 Q115 158 130 164 Q120 175 110 177 Q100 175 90 164Z" fill="#A05040"/>
+                <!-- Lip highlight -->
+                <path d="M95 162 Q110 157 125 162 Q115 158 110 159 Q105 158 95 162Z" fill="#C06050" opacity="0.7"/>
+                <!-- Lower lip -->
+                <path d="M93 167 Q110 175 127 167 Q115 178 110 179 Q105 178 93 167Z" fill="#B05545" opacity="0.8"/>
+                <!-- Left cheek blush -->
+                <ellipse cx="62" cy="132" rx="18" ry="12" fill="#E09070" opacity="0.25"/>
+                <!-- Right cheek blush -->
+                <ellipse cx="158" cy="132" rx="18" ry="12" fill="#E09070" opacity="0.25"/>
+                <!-- Left ear -->
+                <ellipse cx="37" cy="120" rx="12" ry="18" fill="#C8956B"/>
+                <ellipse cx="40" cy="120" rx="7" ry="13" fill="#B8855B"/>
+                <!-- Right ear -->
+                <ellipse cx="183" cy="120" rx="12" ry="18" fill="#C8956B"/>
+                <ellipse cx="180" cy="120" rx="7" ry="13" fill="#B8855B"/>
+                <!-- Chin definition -->
+                <ellipse cx="110" cy="188" rx="30" ry="8" fill="#B8855B" opacity="0.4"/>
+                <!-- Shirt/collar -->
+                <path d="M55 240 L80 195 L110 205 L140 195 L165 240Z" fill="#1A3A5A"/>
+                <!-- Collar detail -->
+                <path d="M90 200 L110 208 L130 200 L110 195Z" fill="#F5F5F5" opacity="0.9"/>
+                <!-- Neck shadow -->
+                <ellipse cx="110" cy="180" rx="28" ry="8" fill="#8A5A3A" opacity="0.4"/>
+                <!-- Scan overlay tint (teal) -->
+                <rect width="220" height="240" fill="rgba(0,229,160,0.06)"/>
+              </svg>
+            </div>
+            <!-- Scan line -->
+            <div class="scan-line" id="scanLine"></div>
+            <!-- Face outline ring -->
+            <div class="face-ring"></div>
+            <!-- Bio dots will be injected by JS -->
+            <div class="bio-dots" id="bioDots"></div>
+            <!-- Corner brackets -->
+            <div class="scan-frame">
+              <div class="corner tl"></div>
+              <div class="corner tr"></div>
+              <div class="corner bl"></div>
+              <div class="corner br"></div>
+            </div>
+          </div>
+
+          <div class="bio-percent" id="bioPercent">0%</div>
+          <div class="bio-status" id="bioStatus">Scanning face…</div>
+          <div class="bio-sub">Hold still while we verify</div>
+
+          <div class="mesh-viz" id="meshViz">
+            <div class="mesh-tag">Eye geometry</div>
+            <div class="mesh-tag">Nose bridge</div>
+            <div class="mesh-tag">Jaw contour</div>
+            <div class="mesh-tag">Cheekbone</div>
+            <div class="mesh-tag">Forehead</div>
+            <div class="mesh-tag">Lip geometry</div>
+          </div>
+
+          <div class="tx-powered">Powered by <span>TelecomX True Identity</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ── SCENE 6: DIGIBANK SUCCESS ── -->
+  <div class="scene" id="scene-db-success" style="background: linear-gradient(180deg, #0A0F1E 0%, #070D1A 100%)">
+    <div class="app-chrome">
+      <div class="app-header">
+        <div class="app-icon digibank">DB</div>
+        <div>
+          <div class="app-name">DigiBank</div>
+          <div class="app-tagline">Secure Banking</div>
+        </div>
+      </div>
+      <div class="app-content">
+        <div class="success-content">
+          <div class="success-ring">
+            <svg class="checkmark-svg" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path class="checkmark-path" d="M10 22 L18 30 L34 14" stroke="white" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div class="success-title">Identity Verified!</div>
+          <div class="success-sub">Your identity has been confirmed securely through TelecomX</div>
+
+          <div class="verification-detail-card">
+            <div class="detail-card-header">Verification Details</div>
+            <div class="detail-row">
+              <span class="detail-key">Status</span>
+              <span class="detail-val green">Confirmed</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-key">Method</span>
+              <span class="detail-val">Biometric</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-key">Operator</span>
+              <span class="detail-val teal">TelecomX</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-key">Time</span>
+              <span class="detail-val">&lt; 2 sec</span>
+            </div>
+          </div>
+          <div class="spacer"></div>
+          <button class="btn-primary btn-continue" onclick="tapButton(this, nextScene)" style="margin-bottom:12px;">
+            Continue to DigiBank
+          </button>
+        </div>
+      </div>
+      <div class="bottom-nav">
+        <div class="nav-item active">
+          <div class="nav-icon">🏠</div>
+          <div class="nav-label">Home</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">💳</div>
+          <div class="nav-label">Cards</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">💸</div>
+          <div class="nav-label">Pay</div>
+        </div>
+        <div class="nav-item">
+          <div class="nav-icon">⋯</div>
+          <div class="nav-label">More</div>
+        </div>
+      </div>
+    </div>
+    <div class="home-indicator"></div>
+  </div>
+
+  <!-- ── SCENE 7: KEY IMPROVEMENT ── -->
+  <div class="scene" id="scene-key-improvement">
+    <div class="key-badge">✦ Key Improvement</div>
+    <div class="key-improvement-card">
+      <div class="key-title">
+        Bank uses phone number prefix<br>
+        <span>(+962 79, +962 77, etc.)</span><br>
+        to automatically identify operator
+      </div>
+      <div class="key-divider"></div>
+      <div class="key-point">
+        <div class="key-point-icon">🚫</div>
+        <div class="key-point-text"><strong>No "Open with" dialog</strong> — user never chooses which app to open</div>
+      </div>
+      <div class="key-point">
+        <div class="key-point-icon">👁️</div>
+        <div class="key-point-text"><strong>No user choice</strong> — routing happens silently in the background</div>
+      </div>
+      <div class="key-point">
+        <div class="key-point-icon">⚡</div>
+        <div class="key-point-text"><strong>Seamless, invisible routing</strong> to MNO app with biometric verification</div>
+      </div>
+    </div>
+    <div class="imagineers-footer">
+      Confidential &amp; Proprietary<br>
+      © 2026 <span>Imagineers Digital Systems LLC</span>
+    </div>
+  </div>
+
+  <div class="home-indicator" id="globalHomeIndicator" style="z-index:300;"></div>
+</div>
+
+<script>
+const SCENES = [
+  'scene-intro',
+  'scene-db-verify',
+  'scene-db-verifying',
+  'scene-tx-launch',
+  'scene-tx-identity',
+  'scene-biometric',
+  'scene-db-success',
+  'scene-key-improvement'
+];
+
+let currentSceneIndex = 0;
+let autoTimer = null;
+
+// Auto-advance timings (ms)
+const AUTO_ADVANCE = [3500, 0, 3000, 1800, 0, 0, 0, 6000];
+
+function showScene(index) {
+  clearTimeout(autoTimer);
+  const prev = document.getElementById(SCENES[currentSceneIndex]);
+  const next = document.getElementById(SCENES[index]);
+  if (prev) prev.classList.remove('active');
+  currentSceneIndex = index;
+  if (next) {
+    next.classList.add('active');
+    onSceneEnter(index);
+  }
+  if (AUTO_ADVANCE[index] > 0) {
+    autoTimer = setTimeout(() => nextScene(), AUTO_ADVANCE[index]);
+  }
+}
+
+function nextScene() {
+  if (currentSceneIndex < SCENES.length - 1) {
+    showScene(currentSceneIndex + 1);
+  } else {
+    // loop back to intro
+    setTimeout(() => showScene(0), 2000);
+  }
+}
+
+function tapButton(btn, fn) {
+  btn.classList.add('tapped');
+  setTimeout(() => { btn.classList.remove('tapped'); fn(); }, 150);
+}
+
+function onSceneEnter(index) {
+  if (index === 3) {
+    // TX launch — auto proceed after animation
+    autoTimer = setTimeout(() => nextScene(), 1800);
+  }
+  if (index === 5) {
+    // Biometric scan
+    startBiometricScan();
+  }
+}
+
+// ── BIOMETRIC SCAN ANIMATION ────────────────────────
+function startBiometricScan() {
+  const percentEl = document.getElementById('bioPercent');
+  const statusEl = document.getElementById('bioStatus');
+  const bioDots = document.getElementById('bioDots');
+  const meshViz = document.getElementById('meshViz');
+
+  // Clear existing dots
+  bioDots.innerHTML = '';
+
+  // Facial landmark positions (relative to 240x240 scanner area, offset by 10px inset)
+  const landmarks = [
+    // Eyes
+    {x:'38%',y:'38%'}, {x:'45%',y:'36%'}, {x:'52%',y:'38%'},
+    {x:'60%',y:'38%'}, {x:'67%',y:'36%'}, {x:'74%',y:'38%'},
+    // Eyebrows
+    {x:'36%',y:'32%'}, {x:'44%',y:'29%'}, {x:'52%',y:'31%'},
+    {x:'60%',y:'31%'}, {x:'68%',y:'29%'}, {x:'76%',y:'32%'},
+    // Nose
+    {x:'50%',y:'48%'}, {x:'48%',y:'56%'}, {x:'52%',y:'62%'},
+    {x:'56%',y:'62%'}, {x:'44%',y:'60%'}, {x:'58%',y:'60%'},
+    // Mouth
+    {x:'42%',y:'70%'}, {x:'50%',y:'67%'}, {x:'58%',y:'70%'},
+    {x:'50%',y:'74%'}, {x:'46%',y:'72%'}, {x:'54%',y:'72%'},
+    // Jaw/chin
+    {x:'30%',y:'65%'}, {x:'28%',y:'55%'}, {x:'70%',y:'65%'}, {x:'72%',y:'55%'},
+    {x:'50%',y:'80%'}, {x:'40%',y:'78%'}, {x:'60%',y:'78%'},
+  ];
+
+  let pct = 0;
+  const steps = [
+    { target: 25, status: 'Scanning face…', delay: 40 },
+    { target: 60, status: 'Mapping landmarks…', delay: 30 },
+    { target: 85, status: 'Matching identity…', delay: 45 },
+    { target: 100, status: 'Identity confirmed!', delay: 50 },
+  ];
+
+  let stepIndex = 0;
+  let dotIndex = 0;
+
+  function tick() {
+    const step = steps[stepIndex];
+    if (!step) {
+      // Done — advance
+      meshViz.classList.add('visible');
+      setTimeout(() => nextScene(), 1400);
+      return;
+    }
+    if (pct < step.target) {
+      pct++;
+      percentEl.textContent = pct + '%';
+      statusEl.textContent = step.status;
+      // Add a dot every 3%
+      if (pct % 3 === 0 && dotIndex < landmarks.length) {
+        const lm = landmarks[dotIndex++];
+        const dot = document.createElement('div');
+        dot.className = 'bio-dot';
+        dot.style.left = lm.x;
+        dot.style.top = lm.y;
+        dot.style.animationDelay = '0s';
+        bioDots.appendChild(dot);
+      }
+      setTimeout(tick, step.delay);
+    } else {
+      stepIndex++;
+      setTimeout(tick, 200);
+    }
+  }
+
+  setTimeout(tick, 600);
+}
+
+// ── START ────────────────────────────────────────────
+// Kick off
+setTimeout(() => showScene(0), 100);
+
+// Click anywhere to advance (except on buttons)
+document.getElementById('phone').addEventListener('click', function(e) {
+  if (e.target.closest('button')) return;
+  // Only auto-advance on scenes without manual buttons
+  const manual = [1, 4, 5, 6]; // scenes with buttons
+  if (!manual.includes(currentSceneIndex)) {
+    nextScene();
+  }
+});
+</script>
+</body>
+</html>
